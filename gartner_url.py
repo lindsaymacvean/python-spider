@@ -13,6 +13,14 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+foreName = 0
+lastName = 1
+documentTitle = 8
+documentURL = 9
+researchURL = 10
+analystURL = 11
+archive = 12
+
 print "downloading input csv with urllib2"
 f = urllib2.urlopen('https://docs.google.com/spreadsheets/d/e/2PACX-1vRwSXoVVf6h-LeadAx_gUDCSuUCw_YJSHhdko9jq9qQqis2CW8JXaeIh6aUJzhjgK7rmONbVU_BMSmJ/pub?gid=28561824&single=true&output=csv')
 data = f.read()
@@ -55,19 +63,19 @@ driver.get('https://gartner.com')
 
 print "Get the Research URL"
 for row in inputReader:
-	if row[10] != '':
+	if row[researchURL] != '':
 		outputWriter.writerow(row)
 		continue
-	driver.get(row[11])
+	driver.get(row[analystURL])
 	elem = None
 	try:
 		if elem is None:
 			elem = driver.find_element_by_class_name('linktoSearchQid')
 	except NoSuchElementException:
-		print("Cannot find the url")
+		print "Cannot find the url"
 		outputWriter.writerow(row)
 		continue
-	row[10] = elem.get_attribute('href')
+	row[researchURL] = elem.get_attribute('href')
 	inputWriter.writerow(row)
 	outputWriter.writerow(row)
 
@@ -75,12 +83,12 @@ inputFile.seek(0)
 outputFile.seek(0)
 print "Get the Document URL"
 for row in inputReader:
-	if row[9] != '':
+	if row[documentURL] != '':
 		outputWriter.writerow(row)
 		continue
 	url = None
 	try:
-		driver.get(row[10])
+		driver.get(row[researchURL])
 		if url is None:
 			wait = WebDriverWait(driver, 100)
 			desired_url = 'document'
@@ -88,33 +96,53 @@ for row in inputReader:
 			url = driver.current_url.split("?")[0]
 			print url
 	except Exception as e:
-		print("Cannot find the url")
+		print "Cannot find the url"
 		outputWriter.writerow(row)
 		continue
-	row[9] = url
+	row[documentURL] = url
 	inputWriter.writerow(row)
 	outputWriter.writerow(row)
 
+
+inputFile.seek(0)
+outputFile.seek(0)
+print "Get the Document Title"
+for row in inputReader:
+	if row[documentTitle] != '':
+		print 'Already has title'
+		outputWriter.writerow(row)
+		continue
+	try:
+		driver.get(row[documentURL])
+	except Exception as e:
+		print "Cannot find the url"
+		row[documentTitle] = "NA"
+		outputWriter.writerow(row)
+		continue
+	# Check if Analyst created the content
+	fullName = row[foreName].upper()+" "+row[lastName].upper()
+	if (fullName not in driver.page_source.upper()):
+		print fullName+" not found in "+row[documentURL]
+		row[documentTitle] = "Name Wrong"
+		outputWriter.writerow(row)
+		continue
+	elem = None
+	try:
+		if elem is None:
+			elem = driver.find_element_by_xpath("//span[contains(@id,'title')]")
+			row[documentTitle] = elem.text
+	except NoSuchElementException:
+		print "Cannot find the Title"
+		row[documentTitle] = "Could not find title"
+		outputWriter.writerow(row)
+		continue
+	# Check if Archived
+	archiveImage = driver.find_elements_by_class_name('archived-btn')
+	if archiveImage:
+		print row[documentTitle]+" Archived"
+		row[archive] = "1"
+	inputWriter.writerow(row)
+	outputWriter.writerow(row)
 driver.close()
 exit(1)
-
-
-# Get the Document Title
-for row in inputReader:
-    if row[8] != '':
-        outputWriter.writerow(row)
-        continue
-    driver.get(row[9])
-    elem = None
-    try:
-        if elem is None:
-            elem = driver.find_element_by_class_name('linktoSearchQid')
-    except NoSuchElementException:
-        print("Cannot find the url")
-        outputWriter.writerow(row)
-        continue
-    row[3] = elem.get_attribute('href')
-    inputWriter.writerow(row)
-    outputWriter.writerow(row)
-
-driver.close()
+	
